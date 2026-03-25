@@ -1,22 +1,36 @@
-name: Build and Publish ParanoidCopy
+name: Build, Publish, and Auto-Tag
 
 on:
   push:
     branches: [ "master" ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-and-tag:
     runs-on: windows-latest
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+          fetch-depth: 0
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
+
+    - name: Determine Run Version
+      id: get_version
+      run: |
+        $version = "1.0.${{ github.run_number }}"
+        echo "APP_VERSION=$version" >> $env:GITHUB_ENV
 
     - name: Publish Self-Contained Executable
       run: >
@@ -24,12 +38,19 @@ jobs:
         -c Release
         -r win-x64
         -p:PublishAot=true
-        -p:Version=1.0.${{ github.run_number }}
+        -p:Version=${{ env.APP_VERSION }}
         -o ./publish_output
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: vibecopy-v1.0.${{ github.run_number }}
+        name: vibecopy-v1.0.${{ env.APP_VERSION }}
         path: ./publish_output/vibecopy.exe
         if-no-files-found: error
+
+    - name: Tag the Release in Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag v${{ env.APP_VERSION }}
+        git push origin v${{ env.APP_VERSION }}
