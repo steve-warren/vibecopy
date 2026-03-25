@@ -13,16 +13,16 @@ public static class FastCopy
     public static async Task CopyDirectoryAsync(
             string sourceDir,
             string destDir,
-            ChannelWriter<string> progressWriter)
+            ChannelWriter<FileInfo> progressWriter)
     {
         if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException();
         Directory.CreateDirectory(destDir);
 
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        Parallel.ForEach(files,
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
-            (file, _) =>
+        await Parallel.ForEachAsync(files,
+            new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
+            async (file, _) =>
             {
                 string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
                 Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
@@ -33,7 +33,7 @@ public static class FastCopy
                 var originalAccessTime = srcInfo.LastAccessTimeUtc;
                 var originalAttributes = srcInfo.Attributes;
 
-                CopyAndVerifyStrict(file, destFile);
+                await Task.Run(() => CopyAndVerifyStrict(file, destFile), _);
 
                 File.SetCreationTimeUtc(destFile, originalCreationTime);
                 File.SetLastWriteTimeUtc(destFile, originalWriteTime);
@@ -43,7 +43,8 @@ public static class FastCopy
                 // the destination will now be ReadOnly, but our timestamps are already safely set.
                 File.SetAttributes(destFile, originalAttributes);
 
-                progressWriter.TryWrite(destFile);
+                var fileInfo = new FileInfo(destFile);
+                progressWriter.TryWrite(fileInfo);
             });
 
         progressWriter.Complete();

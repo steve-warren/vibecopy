@@ -14,9 +14,9 @@ try
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
-    var progressChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+    var progressChannel = Channel.CreateUnbounded<FileInfo>(new UnboundedChannelOptions
     {
-        SingleReader = true, // Optimizes the channel for a single consumer
+        SingleReader = true,
         SingleWriter = false
     });
 
@@ -24,15 +24,15 @@ try
 
     await foreach (var file in progressChannel.Reader.ReadAllAsync())
     {
-        Console.WriteLine($"{DateTime.Now} {file}");
+        Console.WriteLine($"{DateTime.Now} {file.FullName}");
     }
 
     await task;
 
-    Console.WriteLine("✅ Copy & verification completed successfully.");
+    Console.WriteLine("Copy & verification completed successfully.");
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"❌ Error: {ex.Message}");
+    Console.Error.WriteLine($"Error: {ex.Message}");
     Environment.Exit(1);
 }
