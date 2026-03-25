@@ -20,7 +20,7 @@ jobs:
 
     - name: Publish Self-Contained Executable
       run: >
-        dotnet publish
+        dotnet publish ./vibecopy.csproj
         -c Release
         -r win-x64
         -p:PublishAot=true
