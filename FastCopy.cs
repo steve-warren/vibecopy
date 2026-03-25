@@ -46,9 +46,9 @@ public static class FastCopy
                 progressWriter.TryWrite(destFile);
             });
 
-        CloneDirectoryMetadata(sourceDir, destDir);
-
         progressWriter.Complete();
+
+        CloneDirectoryMetadata(sourceDir, destDir);
     }
 
     private static unsafe void CopyAndVerifyStrict(
