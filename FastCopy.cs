@@ -20,9 +20,9 @@ public static class FastCopy
 
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        Parallel.ForEach(files,
+        await Parallel.ForEachAsync(files,
             new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
-            (file, _) =>
+            async (file, _) =>
             {
                 string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
                 Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
@@ -33,7 +33,7 @@ public static class FastCopy
                 var originalAccessTime = srcInfo.LastAccessTimeUtc;
                 var originalAttributes = srcInfo.Attributes;
 
-                CopyAndVerifyStrict(file, destFile);
+                await Task.Run(() => CopyAndVerifyStrict(file, destFile), _);
 
                 File.SetCreationTimeUtc(destFile, originalCreationTime);
                 File.SetLastWriteTimeUtc(destFile, originalWriteTime);

@@ -17,8 +17,7 @@ try
     var progressChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
     {
         SingleReader = true,
-        SingleWriter = false,
-        AllowSynchronousContinuations = true
+        SingleWriter = false
     });
 
     var task = FastCopy.CopyDirectoryAsync(src, dst, progressChannel.Writer);
