@@ -20,28 +20,40 @@ public static class FastCopy
 
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        await Parallel.ForEachAsync(files,
+        Parallel.ForEach(files,
             new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
-            async (file, ct) =>
+            (file, _) =>
             {
                 string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
                 Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
 
-                // Offload the synchronous unsafe work to a thread pool worker
-                await Task.Run(() => CopyAndVerifyStrict(file, destFile, ct), ct);
+                var srcInfo = new FileInfo(file);
+                var originalCreationTime = srcInfo.CreationTimeUtc;
+                var originalWriteTime = srcInfo.LastWriteTimeUtc;
+                var originalAccessTime = srcInfo.LastAccessTimeUtc;
+                var originalAttributes = srcInfo.Attributes;
 
-                File.SetLastWriteTime(destFile, File.GetLastWriteTime(file));
+                CopyAndVerifyStrict(file, destFile);
+
+                File.SetCreationTimeUtc(destFile, originalCreationTime);
+                File.SetLastWriteTimeUtc(destFile, originalWriteTime);
+                File.SetLastAccessTimeUtc(destFile, originalAccessTime);
+
+                // Set attributes absolute last. If the source was ReadOnly, 
+                // the destination will now be ReadOnly, but our timestamps are already safely set.
+                File.SetAttributes(destFile, originalAttributes);
 
                 progressWriter.TryWrite(destFile);
             });
+
+        CloneDirectoryMetadata(sourceDir, destDir);
 
         progressWriter.Complete();
     }
 
     private static unsafe void CopyAndVerifyStrict(
             string source,
-            string dest,
-            CancellationToken cancellationToken)
+            string dest)
     {
         // Aligned memory is MANDATORY for unbuffered I/O
         void* buffer = NativeMemory.AlignedAlloc(BufferSize, SectorSize);
@@ -62,7 +74,6 @@ public static class FastCopy
 
                 while (offset < length)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     long remaining = length - offset;
 
                     // Read exact logical bytes, but ensure the write request is sector-aligned
@@ -101,7 +112,6 @@ public static class FastCopy
 
                 while (offset < length)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     long remaining = length - offset;
 
                     // Hardware rules: Unbuffered read requests MUST be a multiple of the sector size.
@@ -129,6 +139,35 @@ public static class FastCopy
         finally
         {
             NativeMemory.AlignedFree(buffer);
+        }
+    }
+
+    private static void CloneDirectoryMetadata(string sourceDir, string destDir)
+    {
+        // Grab all subdirectories, plus the root source directory itself
+        var directories = new List<string> { sourceDir };
+        directories.AddRange(Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories));
+
+        foreach (var srcPath in directories)
+        {
+            string relPath = Path.GetRelativePath(sourceDir, srcPath);
+            // If relPath is ".", we are looking at the root directory
+            string destPath = relPath == "." ? destDir : Path.Combine(destDir, relPath);
+
+            if (!Directory.Exists(destPath)) continue;
+
+            var srcInfo = new DirectoryInfo(srcPath);
+
+            // 1. Set Timestamps (UTC to avoid DST drift)
+            Directory.SetCreationTimeUtc(destPath, srcInfo.CreationTimeUtc);
+            Directory.SetLastWriteTimeUtc(destPath, srcInfo.LastWriteTimeUtc);
+            Directory.SetLastAccessTimeUtc(destPath, srcInfo.LastAccessTimeUtc);
+
+            // 2. Set Attributes Last
+            // We use DirectoryInfo here because File.SetAttributes can sometimes 
+            // behave weirdly with reparse points/symlinks on directories.
+            var dstInfo = new DirectoryInfo(destPath);
+            dstInfo.Attributes = srcInfo.Attributes;
         }
     }
 }
