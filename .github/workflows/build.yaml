@@ -1,0 +1,35 @@
+name: Build and Publish ParanoidCopy
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Publish Self-Contained Executable
+      run: >
+        dotnet publish
+        -c Release
+        -r win-x64
+        -p:PublishAot=true
+        -p:Version=1.0.${{ github.run_number }}
+        -o ./publish_output
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vibecopy-v1.0.${{ github.run_number }}
+        path: ./publish_output/vibecopy.exe
+        if-no-files-found: error
