@@ -44,7 +44,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: vibecopy-v1.0.${{ env.APP_VERSION }}
+        name: vibecopy-v${{ env.APP_VERSION }}
         path: ./publish_output/vibecopy.exe
         if-no-files-found: error
 
