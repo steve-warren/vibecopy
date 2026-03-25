@@ -21,7 +21,7 @@ public static class FastCopy
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
         Parallel.ForEach(files,
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+            new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
             (file, _) =>
             {
                 string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
