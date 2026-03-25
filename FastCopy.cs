@@ -13,7 +13,7 @@ public static class FastCopy
     public static async Task CopyDirectoryAsync(
             string sourceDir,
             string destDir,
-            ChannelWriter<string> progressWriter)
+            ChannelWriter<FileInfo> progressWriter)
     {
         if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException();
         Directory.CreateDirectory(destDir);
@@ -43,7 +43,8 @@ public static class FastCopy
                 // the destination will now be ReadOnly, but our timestamps are already safely set.
                 File.SetAttributes(destFile, originalAttributes);
 
-                progressWriter.TryWrite(destFile);
+                var fileInfo = new FileInfo(destFile);
+                progressWriter.TryWrite(fileInfo);
             });
 
         progressWriter.Complete();
