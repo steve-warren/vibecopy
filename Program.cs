@@ -2,9 +2,9 @@
 using System.Threading.Channels;
 using vibecopy;
 
-if (args.Length != 3)
+if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir> <workerCount>");
+    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir> [workerCount] [bufferSize]");
     Environment.Exit(1);
 }
 
@@ -13,8 +13,10 @@ try
     string src = Path.GetFullPath(args[0]);
     string dst = Path.GetFullPath(args[1]);
     string workerCountArg = args.Length > 2 ? args[2] : Math.Min(3, Environment.ProcessorCount).ToString();
+    string bufferSizeArg = args.Length > 3 ? args[3] : "1048576"; // 1MB
 
     var workerCount = int.Parse(workerCountArg);
+    var bufferSize = int.Parse(bufferSizeArg);
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
@@ -25,7 +27,12 @@ try
     });
 
     var watch = Stopwatch.StartNew();
-    var task = Task.Run(() => FastCopy.CopyDirectory(src, dst, progressChannel.Writer, workerCount));
+    var task = Task.Run(() => FastCopy.CopyDirectory(
+                src,
+                dst,
+                progressChannel.Writer,
+                workerCount,
+                bufferSize));
 
     var totalBytes = 0UL;
     var totalFiles = 0UL;

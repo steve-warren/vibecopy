@@ -7,7 +7,7 @@ namespace vibecopy;
 
 public static class FastCopy
 {
-    private const int MaxBufferSize = 1024 * 1024 * 4;
+    //private const int MaxBufferSize = 1024 * 1024 * 4;
     private const int SectorSize = 4096;    // Standard NVMe physical sector size
     private const FileOptions NoBuffering = (FileOptions)0x20000000; // FILE_FLAG_NO_BUFFERING
 
@@ -15,7 +15,8 @@ public static class FastCopy
             string sourceDir,
             string destDir,
             ChannelWriter<FileCopyResult> progressWriter,
-            int workerCount)
+            int workerCount,
+            int bufferSize)
     {
         var bufferPool = new ConcurrentBag<nint>();
 
@@ -34,7 +35,7 @@ public static class FastCopy
             {
                 unsafe
                 {
-                    var alloc = (nint)NativeMemory.AlignedAlloc(MaxBufferSize, SectorSize);
+                    var alloc = (nint)NativeMemory.AlignedAlloc((nuint)bufferSize, SectorSize);
                     bufferPool.Add(alloc);
                 }
             }
@@ -46,18 +47,17 @@ public static class FastCopy
                      string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file.FullName));
                      Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
 
-                     var srcInfo = new FileInfo(file.FullName);
-                     var originalCreationTime = srcInfo.CreationTimeUtc;
-                     var originalWriteTime = srcInfo.LastWriteTimeUtc;
-                     var originalAccessTime = srcInfo.LastAccessTimeUtc;
-                     var originalAttributes = srcInfo.Attributes;
+                     var originalCreationTime = file.CreationTimeUtc;
+                     var originalWriteTime = file.LastWriteTimeUtc;
+                     var originalAccessTime = file.LastAccessTimeUtc;
+                     var originalAttributes = file.Attributes;
 
                      if (!bufferPool.TryTake(out var buffer))
                          throw new InvalidOperationException("Buffer pool exhausted.");
 
                      try
                      {
-                         CopyAndVerifyStrict(file.FullName, destFile, buffer);
+                         CopyAndVerifyStrict(file.FullName, destFile, buffer, bufferSize);
 
                          File.SetCreationTimeUtc(destFile, originalCreationTime);
                          File.SetLastWriteTimeUtc(destFile, originalWriteTime);
@@ -67,7 +67,7 @@ public static class FastCopy
                          // the destination will now be ReadOnly, but our timestamps are already safely set.
                          File.SetAttributes(destFile, originalAttributes);
 
-                         progressWriter.TryWrite(new FileCopyResult(file.FullName, destFile, (ulong)srcInfo.Length));
+                         progressWriter.TryWrite(new FileCopyResult(file.FullName, destFile, (ulong)file.Length));
                      }
 
                      finally
@@ -97,7 +97,8 @@ public static class FastCopy
     private static unsafe void CopyAndVerifyStrict(
             string source,
             string dest,
-            nint bufferPointer)
+            nint bufferPointer,
+            int bufferSize)
     {
         byte[] expectedHash;
         void* buffer = (void*)bufferPointer;
@@ -122,8 +123,8 @@ public static class FastCopy
                 long remaining = length - offset;
 
                 // Read exact logical bytes, but ensure the write request is sector-aligned
-                int validBytes = (int)Math.Min(MaxBufferSize, remaining);
-                int alignedWriteSize = (int)Math.Min(MaxBufferSize, (remaining + SectorSize - 1) & ~(SectorSize - 1));
+                int validBytes = (int)Math.Min(bufferSize, remaining);
+                int alignedWriteSize = (int)Math.Min(bufferSize, (remaining + SectorSize - 1) & ~(SectorSize - 1));
 
                 Span<byte> readSpan = new(buffer, validBytes);
                 Span<byte> writeSpan = new(buffer, alignedWriteSize);
@@ -160,8 +161,8 @@ public static class FastCopy
 
                 // Hardware rules: Unbuffered read requests MUST be a multiple of the sector size.
                 // We round up the request to the nearest 4096 bytes, but only hash the valid data.
-                int bytesToRequest = (int)Math.Min(MaxBufferSize, (remaining + SectorSize - 1) & ~(SectorSize - 1));
-                int validBytes = (int)Math.Min(MaxBufferSize, remaining);
+                int bytesToRequest = (int)Math.Min(bufferSize, (remaining + SectorSize - 1) & ~(SectorSize - 1));
+                int validBytes = (int)Math.Min(bufferSize, remaining);
 
                 Span<byte> requestSpan = new(buffer, bytesToRequest);
                 int read = RandomAccess.Read(verify, requestSpan, offset);
