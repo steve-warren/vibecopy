@@ -15,7 +15,7 @@ try
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
-    var progressChannel = Channel.CreateUnbounded<FileInfo>(new UnboundedChannelOptions
+    var progressChannel = Channel.CreateUnbounded<FileCopyResult>(new UnboundedChannelOptions
     {
         SingleReader = true,
         SingleWriter = false
@@ -29,8 +29,8 @@ try
 
     await foreach (var file in progressChannel.Reader.ReadAllAsync())
     {
-        Console.WriteLine($"{DateTime.Now} {file.Name} {file.Length:N0} bytes.");
-        totalBytes += (ulong)file.Length;
+        Console.WriteLine($"{DateTime.Now} {file.Destination} {file.SizeInBytes:N0} bytes.");
+        totalBytes += file.SizeInBytes;
         totalFiles++;
     }
 

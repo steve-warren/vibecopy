@@ -13,42 +13,42 @@ public static class FastCopy
     public static void CopyDirectory(
             string sourceDir,
             string destDir,
-            ChannelWriter<FileInfo> progressWriter)
+            ChannelWriter<FileCopyResult> progressWriter)
     {
-        if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException();
-        Directory.CreateDirectory(destDir);
-
-        var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
-
         try
         {
+            if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException();
+            Directory.CreateDirectory(destDir);
+
+            var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+
             Parallel.ForEach(files,
-                new ParallelOptions { MaxDegreeOfParallelism = Math.Min(3, Environment.ProcessorCount) },
-                (file, _) =>
-                {
-                    string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
-                    Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
+                 new ParallelOptions { MaxDegreeOfParallelism = Math.Min(3, Environment.ProcessorCount) },
+                 (file, _) =>
+                 {
+                     string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
+                     Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
 
-                    var srcInfo = new FileInfo(file);
-                    var originalCreationTime = srcInfo.CreationTimeUtc;
-                    var originalWriteTime = srcInfo.LastWriteTimeUtc;
-                    var originalAccessTime = srcInfo.LastAccessTimeUtc;
-                    var originalAttributes = srcInfo.Attributes;
+                     var srcInfo = new FileInfo(file);
+                     var originalCreationTime = srcInfo.CreationTimeUtc;
+                     var originalWriteTime = srcInfo.LastWriteTimeUtc;
+                     var originalAccessTime = srcInfo.LastAccessTimeUtc;
+                     var originalAttributes = srcInfo.Attributes;
 
-                    CopyAndVerifyStrict(file, destFile);
+                     CopyAndVerifyStrict(file, destFile);
 
-                    File.SetCreationTimeUtc(destFile, originalCreationTime);
-                    File.SetLastWriteTimeUtc(destFile, originalWriteTime);
-                    File.SetLastAccessTimeUtc(destFile, originalAccessTime);
+                     File.SetCreationTimeUtc(destFile, originalCreationTime);
+                     File.SetLastWriteTimeUtc(destFile, originalWriteTime);
+                     File.SetLastAccessTimeUtc(destFile, originalAccessTime);
 
-                    // Set attributes absolute last. If the source was ReadOnly, 
-                    // the destination will now be ReadOnly, but our timestamps are already safely set.
-                    File.SetAttributes(destFile, originalAttributes);
+                     // Set attributes absolute last. If the source was ReadOnly, 
+                     // the destination will now be ReadOnly, but our timestamps are already safely set.
+                     File.SetAttributes(destFile, originalAttributes);
 
-                    var fileInfo = new FileInfo(destFile);
+                     progressWriter.TryWrite(new FileCopyResult(file, destFile, (ulong)srcInfo.Length));
+                 });
 
-                    progressWriter.TryWrite(fileInfo);
-                });
+            CloneDirectoryMetadata(sourceDir, destDir);
         }
 
         finally
@@ -56,7 +56,6 @@ public static class FastCopy
             progressWriter.Complete();
         }
 
-        CloneDirectoryMetadata(sourceDir, destDir);
     }
 
     private static unsafe void CopyAndVerifyStrict(
