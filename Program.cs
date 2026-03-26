@@ -4,7 +4,7 @@ using vibecopy;
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir> [workerCount] [bufferSize]");
+    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir> [workerCount] [bufferSizeMB]");
     Environment.Exit(1);
 }
 
@@ -13,10 +13,10 @@ try
     string src = Path.GetFullPath(args[0]);
     string dst = Path.GetFullPath(args[1]);
     string workerCountArg = args.Length > 2 ? args[2] : Math.Min(3, Environment.ProcessorCount).ToString();
-    string bufferSizeArg = args.Length > 3 ? args[3] : "1048576"; // 1MB
+    string bufferSizeArg = args.Length > 3 ? args[3] : "1"; // 1MB
 
     var workerCount = int.Parse(workerCountArg);
-    var bufferSize = int.Parse(bufferSizeArg);
+    var bufferSize = Math.Min(int.Parse(bufferSizeArg), 4) * 1024 * 1024;
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
