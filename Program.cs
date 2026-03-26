@@ -2,9 +2,9 @@
 using System.Threading.Channels;
 using vibecopy;
 
-if (args.Length != 2)
+if (args.Length != 3)
 {
-    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir>");
+    Console.Error.WriteLine("Usage: vibecopy <sourceDir> <destDir> <workerCount>");
     Environment.Exit(1);
 }
 
