@@ -36,7 +36,7 @@ try
 
     await task;
 
-    Console.WriteLine($"Copied and verified {totalFiles} files successfully in {watch.Elapsed}.");
+    Console.WriteLine($"Copied and verified {totalFiles} files, {totalBytes:N0} bytes successfully in {watch.Elapsed}");
 }
 catch (Exception ex)
 {
