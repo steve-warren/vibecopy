@@ -10,7 +10,7 @@ public static class FastCopy
     private const int SectorSize = 4096;    // Standard NVMe physical sector size
     private const FileOptions NoBuffering = (FileOptions)0x20000000; // FILE_FLAG_NO_BUFFERING
 
-    public static async Task CopyDirectoryAsync(
+    public static void CopyDirectory(
             string sourceDir,
             string destDir,
             ChannelWriter<FileInfo> progressWriter)
@@ -20,34 +20,41 @@ public static class FastCopy
 
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        await Parallel.ForEachAsync(files,
-            new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
-            async (file, _) =>
-            {
-                string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
+        try
+        {
+            Parallel.ForEach(files,
+                new ParallelOptions { MaxDegreeOfParallelism = Math.Min(3, Environment.ProcessorCount) },
+                (file, _) =>
+                {
+                    string destFile = Path.Combine(destDir, Path.GetRelativePath(sourceDir, file));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
 
-                var srcInfo = new FileInfo(file);
-                var originalCreationTime = srcInfo.CreationTimeUtc;
-                var originalWriteTime = srcInfo.LastWriteTimeUtc;
-                var originalAccessTime = srcInfo.LastAccessTimeUtc;
-                var originalAttributes = srcInfo.Attributes;
+                    var srcInfo = new FileInfo(file);
+                    var originalCreationTime = srcInfo.CreationTimeUtc;
+                    var originalWriteTime = srcInfo.LastWriteTimeUtc;
+                    var originalAccessTime = srcInfo.LastAccessTimeUtc;
+                    var originalAttributes = srcInfo.Attributes;
 
-                await Task.Run(() => CopyAndVerifyStrict(file, destFile), _);
+                    CopyAndVerifyStrict(file, destFile);
 
-                File.SetCreationTimeUtc(destFile, originalCreationTime);
-                File.SetLastWriteTimeUtc(destFile, originalWriteTime);
-                File.SetLastAccessTimeUtc(destFile, originalAccessTime);
+                    File.SetCreationTimeUtc(destFile, originalCreationTime);
+                    File.SetLastWriteTimeUtc(destFile, originalWriteTime);
+                    File.SetLastAccessTimeUtc(destFile, originalAccessTime);
 
-                // Set attributes absolute last. If the source was ReadOnly, 
-                // the destination will now be ReadOnly, but our timestamps are already safely set.
-                File.SetAttributes(destFile, originalAttributes);
+                    // Set attributes absolute last. If the source was ReadOnly, 
+                    // the destination will now be ReadOnly, but our timestamps are already safely set.
+                    File.SetAttributes(destFile, originalAttributes);
 
-                var fileInfo = new FileInfo(destFile);
-                progressWriter.TryWrite(fileInfo);
-            });
+                    var fileInfo = new FileInfo(destFile);
 
-        progressWriter.Complete();
+                    progressWriter.TryWrite(fileInfo);
+                });
+        }
+
+        finally
+        {
+            progressWriter.Complete();
+        }
 
         CloneDirectoryMetadata(sourceDir, destDir);
     }
@@ -56,20 +63,17 @@ public static class FastCopy
             string source,
             string dest)
     {
-        // Aligned memory is MANDATORY for unbuffered I/O
         void* buffer = NativeMemory.AlignedAlloc(BufferSize, SectorSize);
 
         try
         {
             byte[] expectedHash;
 
-            // --- PHASE 1: COPY & HASH (Strict Unbuffered DMA) ---
             using (var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
             {
                 using var src = File.OpenHandle(source, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.SequentialScan);
 
                 long length = RandomAccess.GetLength(src);
-                // ADD NoBuffering HERE:
                 using var dst = File.OpenHandle(dest, FileMode.CreateNew, FileAccess.Write, FileShare.None, FileOptions.WriteThrough | NoBuffering, length);
                 long offset = 0;
 
@@ -102,7 +106,6 @@ public static class FastCopy
                 expectedHash = hasher.GetHashAndReset();
             }
 
-            // --- PHASE 2: PHYSICAL VERIFY (Unbuffered I/O) ---
             byte[] actualHash;
 
             using (var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
@@ -130,7 +133,6 @@ public static class FastCopy
                 actualHash = hasher.GetHashAndReset();
             }
 
-            // --- PHASE 3: VALIDATE ---
             if (!expectedHash.AsSpan().SequenceEqual(actualHash))
             {
                 File.Delete(dest);

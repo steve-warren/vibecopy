@@ -20,7 +20,7 @@ try
         SingleWriter = false
     });
 
-    var task = FastCopy.CopyDirectoryAsync(src, dst, progressChannel.Writer);
+    var task = Task.Run(() => FastCopy.CopyDirectory(src, dst, progressChannel.Writer));
 
     await foreach (var file in progressChannel.Reader.ReadAllAsync())
     {
