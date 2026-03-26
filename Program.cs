@@ -12,8 +12,8 @@ try
 {
     string src = Path.GetFullPath(args[0]);
     string dst = Path.GetFullPath(args[1]);
-    string workerCountArg = args.Length > 2 ? args[2] : Math.Min(3, Environment.ProcessorCount).ToString();
-    string bufferSizeArg = args.Length > 3 ? args[3] : "1"; // 1MB
+    string workerCountArg = args.Length > 2 ? args[2] : Environment.ProcessorCount.ToString();
+    string bufferSizeArg = args.Length > 3 ? args[3] : "4"; // 1MB
 
     var workerCount = int.Parse(workerCountArg);
     var bufferSize = Math.Min(int.Parse(bufferSizeArg), 4) * 1024 * 1024;
