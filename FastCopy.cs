@@ -14,7 +14,8 @@ public static class FastCopy
     public static void CopyDirectory(
             string sourceDir,
             string destDir,
-            ChannelWriter<FileCopyResult> progressWriter)
+            ChannelWriter<FileCopyResult> progressWriter,
+            int workerCount)
     {
         var bufferPool = new ConcurrentBag<nint>();
 
@@ -28,8 +29,6 @@ public static class FastCopy
                 .EnumerateFiles("*", SearchOption.AllDirectories)
                 .OrderByDescending(f => f.Length)
                 .ToList();
-
-            var workerCount = Environment.ProcessorCount;
 
             for (var i = 0; i < workerCount; i++)
             {

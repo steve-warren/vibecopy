@@ -12,6 +12,9 @@ try
 {
     string src = Path.GetFullPath(args[0]);
     string dst = Path.GetFullPath(args[1]);
+    string workerCountArg = args.Length > 2 ? args[2] : Math.Min(3, Environment.ProcessorCount).ToString();
+
+    var workerCount = int.Parse(workerCountArg);
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
@@ -22,7 +25,7 @@ try
     });
 
     var watch = Stopwatch.StartNew();
-    var task = Task.Run(() => FastCopy.CopyDirectory(src, dst, progressChannel.Writer));
+    var task = Task.Run(() => FastCopy.CopyDirectory(src, dst, progressChannel.Writer, workerCount));
 
     var totalBytes = 0UL;
     var totalFiles = 0UL;
