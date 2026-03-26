@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics;
+using System.Threading.Channels;
 using vibecopy;
 
 if (args.Length != 2)
@@ -20,16 +21,22 @@ try
         SingleWriter = false
     });
 
+    var watch = Stopwatch.StartNew();
     var task = Task.Run(() => FastCopy.CopyDirectory(src, dst, progressChannel.Writer));
+
+    var totalBytes = 0UL;
+    var totalFiles = 0UL;
 
     await foreach (var file in progressChannel.Reader.ReadAllAsync())
     {
-        Console.WriteLine($"{DateTime.Now} {file.FullName}");
+        Console.WriteLine($"{DateTime.Now} {file.Name} {file.Length:N0} bytes.");
+        totalBytes += (ulong)file.Length;
+        totalFiles++;
     }
 
     await task;
 
-    Console.WriteLine("Copy & verification completed successfully.");
+    Console.WriteLine($"Copied and verified {totalFiles} files successfully in {watch.Elapsed}.");
 }
 catch (Exception ex)
 {
