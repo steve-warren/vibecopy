@@ -7,7 +7,6 @@ namespace vibecopy;
 
 public static class FastCopy
 {
-    //private const int MaxBufferSize = 1024 * 1024 * 4;
     private const int SectorSize = 4096;    // Standard NVMe physical sector size
     private const FileOptions NoBuffering = (FileOptions)0x20000000; // FILE_FLAG_NO_BUFFERING
 
@@ -27,9 +26,7 @@ public static class FastCopy
 
 
             var files = new DirectoryInfo(sourceDir)
-                .EnumerateFiles("*", SearchOption.AllDirectories)
-                .OrderByDescending(f => f.Length)
-                .ToList();
+                .EnumerateFiles("*", SearchOption.AllDirectories);
 
             for (var i = 0; i < workerCount; i++)
             {
