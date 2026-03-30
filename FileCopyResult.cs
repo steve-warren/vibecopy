@@ -1,4 +1,7 @@
 namespace vibecopy;
 
-public readonly record struct FileCopyResult(string Source, string Destination, ulong SizeInBytes);
-
+public readonly record struct FileCopyResult(
+    string Source,
+    string Destination,
+    long SizeInBytes,
+    TimeSpan Duration);

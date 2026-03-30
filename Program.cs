@@ -16,7 +16,7 @@ try
     string bufferSizeArg = args.Length > 3 ? args[3] : "4";
 
     var workerCount = int.Parse(workerCountArg);
-    var bufferSize = Math.Min(int.Parse(bufferSizeArg), 4) * 1024 * 1024;
+    var bufferSize = Capacity.Int32.Mebibytes(Math.Min(int.Parse(bufferSizeArg), 4));
 
     Console.WriteLine($"Copying '{src}' to '{dst}'...");
 
@@ -27,29 +27,29 @@ try
     });
 
     var watch = Stopwatch.StartNew();
-    var task = Task.Run(() => FastCopy.CopyDirectory(
+    var task = Task.Run(() => FastCopy.CopyPath(
                 src,
                 dst,
                 progressChannel.Writer,
                 workerCount,
                 bufferSize));
 
-    var totalBytes = 0UL;
-    var totalFiles = 0UL;
+    var totalBytes = 0L;
+    var totalFiles = 0L;
 
     await foreach (var file in progressChannel.Reader.ReadAllAsync())
     {
-        Console.WriteLine($"{DateTime.Now} {file.Destination} {file.SizeInBytes:N0} bytes.");
+        Console.WriteLine($"{DateTime.Now} {file.Destination} {Capacity.ToHuman(file.SizeInBytes)} in {file.Duration}.");
         totalBytes += file.SizeInBytes;
         totalFiles++;
     }
 
     await task;
 
-    Console.WriteLine($"Copied and verified {totalFiles} files, {totalBytes:N0} bytes successfully in {watch.Elapsed}");
+    Console.WriteLine($"Perfect vibe! Vibed {totalFiles:N0} files, {Capacity.ToHuman(totalBytes)} successfully in {watch.Elapsed}");
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"Error: {ex.Message}");
+    Console.Error.WriteLine($"Vibe ruined! {ex.Message}");
     Environment.Exit(1);
 }
